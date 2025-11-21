@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PDV - Bar do Gigante (Layout Aprimorado)</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React / ReactDOM UMD -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel (para transpilar JSX no browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Visual tweaks gerais */
+    body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .sidebar-scroll { max-height: calc(100vh - 96px); overflow:auto; }
+
+    /* Custom scrollbar (sutil) */
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#c7b3ff,#8b5cf6); border-radius:999px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* Utility to create soft glass cards */
+    .glass { background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.75)); backdrop-filter: blur(6px); }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+  const { useState, useEffect, useMemo, useRef } = React;
+
+  /**********************
+   * Utilitários & Init *
+   **********************/
+  const initialProdutosDefault = [
+    { id: 1, nome: "Coca-Cola 2L", preco: 8.5, estoque: 50, categoria: "Bebidas" },
+    { id: 2, nome: "Cerveja Skol Lata", preco: 3.2, estoque: 120, categoria: "Bebidas" },
+    { id: 3, nome: "Cigarro Marlboro", preco: 12.0, estoque: 30, categoria: "Cigarros" },
+    { id: 4, nome: "Palito de Dente", preco: 0.5, estoque: 200, categoria: "Diversos" },
+    { id: 5, nome: "Água Mineral 500ml", preco: 2.0, estoque: 100, categoria: "Bebidas" }
+  ];
+
+  function uid(){ return Date.now() + Math.floor(Math.random()*9999); }
+  function currency(v){ return 'R$ ' + Number(v||0).toFixed(2); }
+
+  function storageGet(key, fallback=null){ try { const raw = localStorage.getItem(key); if(raw) return JSON.parse(raw); return fallback; } catch(e){ return fallback; } }
+  function storageSet(key, value){ try { localStorage.setItem(key, JSON.stringify(value)); } catch(e){} }
+
+  /**********
+   * Login *
+   **********/
+  const defaultUser = { username: 'admin', password: '1234' };
+
+  function Login({onLogin}){
+    const [u, setU] = useState('');
+    const [p, setP] = useState('');
+    const [err, setErr] = useState('');
+
+    function submit(e){
+      e.preventDefault();
+      if(u === defaultUser.username && p === defaultUser.password){
+        onLogin({username: u});
+      } else {
+        setErr('Usuário ou senha inválidos');
+      }
+    }
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+
+          {/* Painel visual */}
+          <div className="hidden md:flex flex-col items-center justify-center rounded-2xl p-8 glass shadow-xl border border-white/30">
+            <div className="text-7xl mb-4">🍺</div>
+            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Bar do Gigante</h1>
+            <p className="mt-2 text-gray-600">PDV moderno — design limpo e funcional</p>
+            <div className="mt-6 text-sm text-gray-500">Dica: usuário padrão <b>admin</b> / senha <b>1234</b></div>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={submit} className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Entrar</h2>
+                <p className="text-sm text-gray-500">Acesse o sistema PDV</p>
+              </div>
+              <div className="text-2xl">🔒</div>
+            </div>
+
+            <label className="block mb-4">
+              <span className="text-sm text-gray-700">Usuário</span>
+              <input className="mt-1 block w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" value={u} onChange={e=>setU(e.target.value)} required />
+            </label>
+
+            <label className="block mb-4">
+              <span className="text-sm text-gray-700">Senha</span>
+              <input type="password" className="mt-1 block w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" value={p} onChange={e=>setP(e.target.value)} required />
+            </label>
+
+            {err && <div className="text-red-600 mb-3">{err}</div>}
+
+            <button className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition">Entrar</button>
+
+            <div className="mt-4 text-center text-xs text-gray-500">Suporte: <span className="text-indigo-600">suporte@bardogigante.local</span></div>
+          </form>
+
+        </div>
+      </div>
+    );
+  }
+
+  /****************
+   * Header, Side *
+   ****************/
+  function Header({user, onLogout}){
+    return (
+      <header className="bg-white shadow sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="text-3xl">🍻</div>
+            <div>
+              <div className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Bar do Gigante</div>
+              <div className="text-xs text-gray-500 hidden sm:block">Sistema PDV</div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full shadow-sm">
+              <div className="text-sm text-gray-700">👤 {user?.username}</div>
+            </div>
+            <button onClick={onLogout} className="px-3 py-1 rounded-lg border hover:bg-gray-50 transition">Sair</button>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  function Sidebar({selected, setSelected}){
+    const itens = [
+      { key:'pdv', label:'🛒 PDV' },
+      { key:'produtos', label:'📦 Produtos' },
+      { key:'relatorios', label:'📊 Relatórios' },
+      { key:'avancado', label:'📈 Relatório Avançado' }
+    ];
+    return (
+      <aside className="w-64 bg-white border-r hidden md:block">
+        <div className="p-4 sidebar-scroll">
+          {itens.map(i=>(
+            <button key={i.key} onClick={()=>setSelected(i.key)}
+              className={`flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl my-1 font-medium transition ${selected===i.key ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg' : 'hover:bg-indigo-50'}`}>
+              <span className="text-lg">{i.label.split(' ')[0]}</span>
+              <span className="hidden sm:block">{i.label.split(' ').slice(1).join(' ')}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
+    );
+  }
+
+  /**********
+   * VIEWS *
+   **********/
+  function PDVView({produtos, adicionarAoCarrinho, busca, setBusca, carrinho, alterarQuantidade, removerDoCarrinho, finalizarVenda, totalCarrinho}){
+    const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()) || p.categoria.toLowerCase().includes(busca.toLowerCase()));
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-2xl shadow flex gap-3 items-center">
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Pesquisar produto ou categoria" className="flex-1 p-3 border rounded-xl focus:ring-2 focus:ring-indigo-200 transition" />
+          <div className="text-sm text-gray-500">Clique no card para adicionar ➕</div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {produtosFiltrados.map(produto => (
+                <div key={produto.id}
+                     onClick={()=>adicionarAoCarrinho(produto)}
+                     className="p-4 rounded-2xl border cursor-pointer shadow-sm hover:shadow-lg transform hover:-translate-y-1 transition bg-white">
+
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm text-gray-500">{produto.categoria}</div>
+                      <div className="font-semibold text-lg mt-1">{produto.nome}</div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-green-600 font-bold text-lg">{currency(produto.preco)}</div>
+                      <div className="text-xs mt-2">
+                        {produto.estoque <= 10 ? (
+                          <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full text-red-700 bg-red-50 text-xs font-semibold">⚠️ Estoque baixo — {produto.estoque}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 px-2 py-1 rounded-full text-gray-700 bg-gray-50 text-xs">📦 {produto.estoque}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-xs text-gray-500">Toque para adicionar</div>
+                    <div className="text-sm text-indigo-600 font-semibold">Adicionar ➕</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl shadow">
+            <h3 className="font-bold text-lg flex items-center gap-2">🧾 Carrinho</h3>
+
+            <div className="mt-3 max-h-64 overflow-y-auto space-y-3">
+              {carrinho.map(item=>(
+                <div key={item.id} className="p-3 border rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-medium">{item.nome}</div>
+                      <div className="text-xs text-gray-500">{item.categoria}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">{currency(item.preco * item.quantidade)}</div>
+                      <div className="text-xs text-gray-500">{currency(item.preco)} cada</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={()=>alterarQuantidade(item.id, item.quantidade - 1)} className="px-3 py-1 border rounded-lg hover:bg-gray-50 transition">−</button>
+                    <div className="px-3">{item.quantidade}</div>
+                    <button onClick={()=>alterarQuantidade(item.id, item.quantidade + 1)} className="px-3 py-1 border rounded-lg hover:bg-gray-50 transition">+</button>
+                    <button onClick={()=>removerDoCarrinho(item.id)} className="ml-auto text-red-600 hover:underline">Remover</button>
+                  </div>
+                </div>
+              ))}
+
+              {carrinho.length===0 && <div className="text-gray-500 text-center py-6">Carrinho vazio — adicione produtos</div>}
+            </div>
+
+            <div className="mt-4 border-t pt-3">
+              <div className="flex items-center justify-between font-bold text-lg mb-3">
+                <div>Total</div>
+                <div className="text-green-600">{currency(totalCarrinho)}</div>
+              </div>
+              <button onClick={finalizarVenda} className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-green-500 to-teal-400 text-white shadow hover:shadow-lg transition">Finalizar Venda</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function ProdutosView({produtos, salvarProdutos}){
+    const [form, setForm] = useState({ id:null, nome:'', preco:'', estoque:'', categoria:'' });
+
+    function submit(e){
+      e.preventDefault();
+      if(!form.nome || !form.preco || !form.estoque) return alert('Preencha os campos obrigatórios');
+      const novo = { ...form, preco: Number(form.preco), estoque: Number(form.estoque), id: form.id || uid() };
+      let novos;
+      if(form.id) novos = produtos.map(p=> p.id===form.id ? novo : p);
+      else novos = [...produtos, novo];
+      salvarProdutos(novos);
+      setForm({ id:null, nome:'', preco:'', estoque:'', categoria:'' });
+    }
+
+    function editar(p){ setForm(p); }
+    function excluir(p){ if(!confirm(`Excluir ${p.nome}?`)) return; salvarProdutos(produtos.filter(x=>x.id!==p.id)); }
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white p-4 rounded-2xl shadow">
+          <h3 className="font-bold mb-3">{form.id ? 'Editar' : 'Novo'} Produto</h3>
+          <form onSubmit={submit} className="space-y-3">
+            <input value={form.nome} onChange={e=>setForm({...form, nome:e.target.value})} placeholder="Nome" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-200 transition" />
+            <input value={form.preco} onChange={e=>setForm({...form, preco:e.target.value})} placeholder="Preço" type="number" step="0.01" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-200 transition" />
+            <input value={form.estoque} onChange={e=>setForm({...form, estoque:e.target.value})} placeholder="Estoque" type="number" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-200 transition" />
+            <input value={form.categoria} onChange={e=>setForm({...form, categoria:e.target.value})} placeholder="Categoria" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-indigo-200 transition" />
+
+            <div className="flex gap-3">
+              <button className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow">{form.id ? 'Atualizar' : 'Adicionar'}</button>
+              {form.id && <button type="button" onClick={()=>setForm({ id:null, nome:'', preco:'', estoque:'', categoria:'' })} className="py-3 px-4 border rounded-xl">Cancelar</button>}
+            </div>
+          </form>
+        </div>
+
+        <div className="lg:col-span-2 bg-white p-4 rounded-2xl shadow">
+          <h3 className="font-bold mb-3">Produtos</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                <tr>
+                  <th className="p-3 text-left">Produto</th>
+                  <th className="p-3 text-left">Categoria</th>
+                  <th className="p-3 text-right">Preço</th>
+                  <th className="p-3 text-right">Estoque</th>
+                  <th className="p-3 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {produtos.map(p=>(
+                  <tr key={p.id} className="border-b hover:bg-gray-50 transition">
+                    <td className="p-3">{p.nome}</td>
+                    <td className="p-3">{p.categoria}</td>
+                    <td className="p-3 text-right">{currency(p.preco)}</td>
+                    <td className={`p-3 text-right ${p.estoque<=10 ? 'text-red-600 font-bold' : ''}`}>{p.estoque <= 10 ? (<span className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-red-50 text-red-700">⚠️ {p.estoque}</span>) : p.estoque}</td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-3">
+                        <button onClick={()=>editar(p)} className="text-indigo-600 hover:underline">Editar</button>
+                        <button onClick={()=>excluir(p)} className="text-red-600 hover:underline">Excluir</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /*************************
+   * Charts: Chart.js refs *
+   *************************/
+  function RelatoriosView({vendas, produtos}) {
+    const areaRef = useRef(null);
+    const barRef = useRef(null);
+    const pieRef = useRef(null);
+
+    // build series by day
+    const series = useMemo(() => {
+      const map = {};
+      vendas.forEach(v=>{
+        const day = v.data.split('T')[0];
+        map[day] = (map[day]||0) + v.total;
+      });
+      const arr = Object.entries(map).map(([d,t])=>({ date:d, total:t }));
+      arr.sort((a,b)=>a.date.localeCompare(b.date));
+      return arr;
+    }, [vendas]);
+
+    const top = useMemo(()=> {
+      const vendaMap = {};
+      vendas.forEach(v=>{
+        v.itens.forEach(it=>{
+          vendaMap[it.id] = vendaMap[it.id] || { nome:it.nome, quantidade:0, total:0 };
+          vendaMap[it.id].quantidade += it.quantidade;
+          vendaMap[it.id].total += it.preco * it.quantidade;
+        });
+      });
+      return Object.values(vendaMap).sort((a,b)=>b.quantidade - a.quantidade).slice(0,6);
+    }, [vendas, produtos]);
+
+    // render charts
+    useEffect(()=>{
+      if(areaRef.current && areaRef.current._chart) { try{ areaRef.current._chart.destroy(); }catch{} }
+      if(barRef.current && barRef.current._chart) { try{ barRef.current._chart.destroy(); }catch{} }
+      if(pieRef.current && pieRef.current._chart) { try{ pieRef.current._chart.destroy(); }catch{} }
+
+      if(areaRef.current){
+        const ctx = areaRef.current.getContext('2d');
+        const labels = series.map(s=>s.date);
+        const data = series.map(s=>s.total);
+        areaRef.current._chart = new Chart(ctx, {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'Receita', data, fill: true, tension: 0.3, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.12)' }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: ctx => currency(ctx.raw) } } }, scales: { y: { beginAtZero: true } } }
+        });
+      }
+
+      if(barRef.current){
+        const ctx = barRef.current.getContext('2d');
+        const labels = top.map(t=>t.nome);
+        const data = top.map(t=>t.quantidade);
+        barRef.current._chart = new Chart(ctx, { type:'bar', data: { labels, datasets: [{ label:'Quantidade', data, backgroundColor: '#06b6d4' }] }, options: { indexAxis:'y', responsive:true, maintainAspectRatio:false } });
+      }
+
+      if(pieRef.current){
+        const ctx = pieRef.current.getContext('2d');
+        const labels = top.map(t=>t.nome);
+        const data = top.map(t=>t.quantidade);
+        const colors = ['#7c3aed','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+        pieRef.current._chart = new Chart(ctx, { type:'pie', data: { labels, datasets:[{ data, backgroundColor: colors }] }, options: { responsive:true, maintainAspectRatio:false } });
+      }
+
+    }, [series, top]);
+
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white p-4 rounded-2xl shadow">
+            <h4 className="font-bold mb-2">Receita por dia</h4>
+            <div style={{height:240}}>
+              <canvas ref={areaRef}></canvas>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl shadow">
+            <h4 className="font-bold mb-2">Top produtos</h4>
+            <div style={{height:240}}>
+              <canvas ref={barRef}></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl shadow">
+          <h4 className="font-bold mb-2">Distribuição - quantidade vendida (Top 6)</h4>
+          <div className="flex gap-4 items-start">
+            <div style={{width:300,height:240}}>
+              <canvas ref={pieRef}></canvas>
+            </div>
+            <div className="flex-1">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 text-left">Produto</th>
+                    <th className="p-2 text-right">Qtd</th>
+                    <th className="p-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top.map((t,i)=>(
+                    <tr key={i} className="border-b hover:bg-gray-50">
+                      <td className="p-2">{t.nome}</td>
+                      <td className="p-2 text-right">{t.quantidade}</td>
+                      <td className="p-2 text-right">{currency(t.total)}</td>
+                    </tr>
+                  ))}
+                  {top.length===0 && <tr><td colSpan="3" className="p-4 text-center text-gray-500">Nenhuma venda registrada</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl shadow">
+          <h4 className="font-bold mb-2">Produtos com estoque baixo</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 text-left">Produto</th>
+                  <th className="p-2 text-left">Categoria</th>
+                  <th className="p-2 text-right">Estoque</th>
+                </tr>
+              </thead>
+              <tbody>
+                {produtos.filter(p=>p.estoque<=10).map(p=>(
+                  <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <td className="p-2 font-semibold">{p.nome}</td>
+                    <td className="p-2">{p.categoria}</td>
+                    <td className="p-2 text-right text-red-600 font-bold">{p.estoque}</td>
+                  </tr>
+                ))}
+                {produtos.filter(p=>p.estoque<=10).length===0 && <tr><td colSpan="3" className="p-4 text-center text-gray-500">Todos os produtos com estoque adequado</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function RelatorioAvancado({vendas, produtos}) {
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+    const [categoria, setCategoria] = useState('');
+
+    const categorias = Array.from(new Set(produtos.map(p=>p.categoria)));
+
+    const filtradas = vendas.filter(v=>{
+      const day = v.data.split('T')[0];
+      if(from && day < from) return false;
+      if(to && day > to) return false;
+      if(categoria){
+        const tem = v.itens.some(it => produtos.find(p => p.id === it.id && p.categoria === categoria));
+        if(!tem) return false;
+      }
+      return true;
+    });
+
+    const total = filtradas.reduce((s,v)=>s+v.total,0);
+
+    function exportCSV(){
+      const rows = [['id','data','total','itens'], ...filtradas.map(v=>[v.id, v.data, v.total, JSON.stringify(v.itens)])];
+      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'relatorio_avancado.csv'; link.click();
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-white p-4 rounded-2xl shadow grid grid-cols-1 md:grid-cols-4 gap-2">
+          <div><label className="text-sm">De</label><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="block mt-1 p-2 border rounded-xl w-full" /></div>
+          <div><label className="text-sm">Até</label><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="block mt-1 p-2 border rounded-xl w-full" /></div>
+          <div><label className="text-sm">Categoria</label>
+            <select value={categoria} onChange={e=>setCategoria(e.target.value)} className="block mt-1 p-2 border rounded-xl w-full">
+              <option value="">Todas</option>
+              {categorias.map((c,i)=><option key={i} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button onClick={exportCSV} className="py-2 px-3 bg-indigo-600 text-white rounded-xl">Exportar CSV</button>
+            <button onClick={()=>window.print()} className="py-2 px-3 border rounded-xl">Imprimir</button>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl shadow">
+          <div className="flex justify-between items-center mb-3">
+            <div className="font-bold">Vendas filtradas: {filtradas.length}</div>
+            <div className="font-bold text-green-600">Total: {currency(total)}</div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 text-left">ID</th>
+                  <th className="p-2 text-left">Data</th>
+                  <th className="p-2 text-right">Total</th>
+                  <th className="p-2 text-left">Itens</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtradas.map(v=>(
+                  <tr key={v.id} className="border-b hover:bg-gray-50">
+                    <td className="p-2">{v.id}</td>
+                    <td className="p-2">{v.data}</td>
+                    <td className="p-2 text-right">{currency(v.total)}</td>
+                    <td className="p-2">{v.itens.map(it=>`${it.nome} (x${it.quantidade})`).join(', ')}</td>
+                  </tr>
+                ))}
+                {filtradas.length===0 && <tr><td colSpan={4} className="p-4 text-center text-gray-500">Nenhuma venda encontrada</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /****************
+   * Main App     *
+   ****************/
+  function App(){
+    const [user, setUser] = useState(() => { const raw = sessionStorage.getItem('pdv_user'); return raw ? JSON.parse(raw) : null; });
+
+    useEffect(()=>{
+      const p = storageGet('produtos', null);
+      if(p === null) storageSet('produtos', initialProdutosDefault);
+      const v = storageGet('vendas', null);
+      if(v === null) storageSet('vendas', []);
+    }, []);
+
+    const [produtos, setProdutos] = useState(() => storageGet('produtos', initialProdutosDefault));
+    const [vendas, setVendas] = useState(() => storageGet('vendas', []));
+    const [carrinho, setCarrinho] = useState([]);
+    const [busca, setBusca] = useState('');
+    const [selected, setSelected] = useState('pdv');
+
+    useEffect(()=> storageSet('produtos', produtos), [produtos]);
+    useEffect(()=> storageSet('vendas', vendas), [vendas]);
+
+    useEffect(()=> { if(user) sessionStorage.setItem('pdv_user', JSON.stringify(user)); else sessionStorage.removeItem('pdv_user'); }, [user]);
+
+    const salvarProdutos = (novos) => setProdutos(novos);
+    const salvarVendas = (novas) => setVendas(novas);
+
+    function adicionarAoCarrinho(produto){
+      if(produto.estoque <= 0) return alert('Produto sem estoque!');
+      const existe = carrinho.find(i=>i.id===produto.id);
+      if(existe){
+        if(existe.quantidade >= produto.estoque) return alert('Quantidade maior que o estoque disponível!');
+        setCarrinho(carrinho.map(i => i.id===produto.id ? {...i, quantidade: i.quantidade+1} : i));
+      } else {
+        setCarrinho([...carrinho, {...produto, quantidade:1}]);
+      }
+    }
+
+    function alterarQuantidade(id, nova){
+      const produto = produtos.find(p=>p.id===id);
+      if(!produto) return;
+      if(nova > produto.estoque) return alert('Quantidade maior que o estoque!');
+      if(nova <= 0) return setCarrinho(carrinho.filter(i=>i.id!==id));
+      setCarrinho(carrinho.map(i=> i.id===id ? {...i, quantidade:nova} : i));
+    }
+
+    function removerDoCarrinho(id){ setCarrinho(carrinho.filter(i=>i.id!==id)); }
+
+    function finalizarVenda(){
+      if(carrinho.length === 0) return alert('Carrinho vazio!');
+      const venda = { id: uid(), data: new Date().toISOString(), itens: carrinho, total: carrinho.reduce((s,i)=> s + i.preco * i.quantidade, 0) };
+      const novosProdutos = produtos.map(produto => {
+        const itemVendido = carrinho.find(item => item.id === produto.id);
+        if(itemVendido) return {...produto, estoque: produto.estoque - itemVendido.quantidade};
+        return produto;
+      });
+      salvarProdutos(novosProdutos);
+      salvarVendas([...vendas, venda]);
+      setCarrinho([]);
+      alert('Venda finalizada com sucesso!');
+    }
+
+    const totalCarrinho = carrinho.reduce((s,i)=> s + i.preco * i.quantidade, 0);
+
+    if(!user) return <Login onLogin={setUser} />;
+
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Header user={user} onLogout={()=>setUser(null)} />
+        <div className="max-w-7xl mx-auto flex">
+          <Sidebar selected={selected} setSelected={setSelected} />
+          <main className="flex-1 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold">Painel</h1>
+              <div className="flex gap-2">
+                <button onClick={()=>window.print()} className="px-3 py-2 border rounded-xl hover:bg-gray-50 transition">Imprimir</button>
+                <button onClick={()=>{ navigator.clipboard?.writeText(JSON.stringify({produtos,vendas})); alert('Dados copiados para clipboard'); }} className="px-3 py-2 border rounded-xl hover:bg-gray-50 transition">Exportar JSON</button>
+              </div>
+            </div>
+
+            {selected === 'pdv' && (
+              <PDVView produtos={produtos} adicionarAoCarrinho={adicionarAoCarrinho} busca={busca} setBusca={setBusca}
+                       carrinho={carrinho} alterarQuantidade={alterarQuantidade} removerDoCarrinho={removerDoCarrinho}
+                       finalizarVenda={finalizarVenda} totalCarrinho={totalCarrinho} />
+            )}
+
+            {selected === 'produtos' && (
+              <ProdutosView produtos={produtos} salvarProdutos={salvarProdutos} />
+            )}
+
+            {selected === 'relatorios' && (
+              <RelatoriosView vendas={vendas} produtos={produtos} />
+            )}
+
+            {selected === 'avancado' && (
+              <RelatorioAvancado vendas={vendas} produtos={produtos} />
+            )}
+
+            <div className="mt-8 text-xs text-gray-500">Dados salvos em localStorage (chaves: <code>produtos</code>, <code>vendas</code>).</div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
