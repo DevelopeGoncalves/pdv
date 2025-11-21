@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cardápio Digital - Bar do Gigante</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    dourado: '#D4AF37',
+                    douradoEscuro: '#B8941F',
+                    preto: '#1a1a1a',
+                    cinzaEscuro: '#2d2d2d',
+                }
+            }
+        }
+    }
+  </script>
+
+  <style>
+    /* Estilos Dourado/Preto */
+    body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    
+    /* LOGO STYLES (Copiado do seu original) */
+    .logo-bar-text {
+        font-size: 22px;
+        font-weight: bold;
+        color: #D4AF37;
+        letter-spacing: 2px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        line-height: 1;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-preto via-cinzaEscuro to-preto">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+  const { useState, useEffect, useMemo } = React; 
+
+  /**********************
+   * Utilitários & Init *
+   **********************/
+  const initialProdutosDefault = [
+    { id: 1, nome: "Coca-Cola 2L", preco: 8.5, estoque: 50, categoria: "Bebidas" },
+    { id: 2, nome: "Cerveja Skol Lata", preco: 3.2, estoque: 120, categoria: "Bebidas" },
+    { id: 3, nome: "Cigarro Marlboro", preco: 12.0, estoque: 30, categoria: "Cigarros" },
+    { id: 4, nome: "Palito de Dente", preco: 0.5, estoque: 200, categoria: "Diversos" },
+    { id: 5, nome: "Água Mineral 500ml", preco: 2.0, estoque: 100, categoria: "Bebidas" },
+    { id: 6, nome: "Cachaça 51", preco: 15.0, estoque: 10, categoria: "Destilados" },
+    { id: 7, nome: "Salgadinho Elma Chips", preco: 4.5, estoque: 45, categoria: "Petiscos" },
+    { id: 8, nome: "Pinga Artesanal", preco: 25.0, estoque: 5, categoria: "Destilados" },
+  ];
+
+  function uid(){ return Date.now() + Math.floor(Math.random()*9999); }
+  function currency(v){ return 'R$ ' + Number(v||0).toFixed(2).replace('.', ','); } 
+
+  function storageGet(key, fallback=null){ try { const raw = localStorage.getItem(key); if(raw) return JSON.parse(raw); return fallback; } catch(e){ return fallback; } }
+  function storageSet(key, value){ try { localStorage.setItem(key, JSON.stringify(value)); } catch(e){} }
+
+  /*************************
+   * View de Comanda Ativa *
+   *************************/
+  function ComandaAtivaView({ comanda, enviarPedidoConsumo }) {
+      const itensDisponiveis = comanda.itensPrePagos.filter(i => i.quantidadeDisponivel > 0);
+      const [itensPedido, setItensPedido] = useState([]); // Itens que o cliente vai pedir agora
+      
+      function adicionarAoPedido(item) {
+          if (item.quantidadeDisponivel <= 0) return alert("Item esgotado ou já pedido.");
+          
+          const itemExistente = itensPedido.find(i => i.id === item.id);
+          const quantidadeNoPedido = itemExistente ? itemExistente.quantidade : 0;
+          
+          if (quantidadeNoPedido >= item.quantidadeDisponivel) {
+              return alert(`Máximo de ${item.quantidadeDisponivel} disponíveis para este pedido.`);
+          }
+          
+          if (itemExistente) {
+              setItensPedido(itensPedido.map(i => i.id === item.id ? {...i, quantidade: i.quantidade + 1} : i));
+          } else {
+              setItensPedido([...itensPedido, {...item, quantidade: 1}]);
+          }
+      }
+      
+      function removerDoPedido(id) {
+          setItensPedido(itensPedido.filter(i => i.id !== id));
+      }
+
+      function handleEnviarPedido() {
+          if (itensPedido.length === 0) return alert("Adicione itens para enviar o pedido.");
+          
+          const pedido = {
+              nomeCliente: comanda.nomeCliente,
+              itens: itensPedido
+          };
+          
+          enviarPedidoConsumo(pedido);
+          setItensPedido([]); // Limpa o pedido após o envio
+      }
+
+      return (
+          <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-preto via-cinzaEscuro to-preto">
+              <div className="text-center mb-10">
+                  <h1 className="text-4xl font-extrabold text-dourado logo-bar-text">BAR DO GIGANTE</h1>
+                  <p className="text-xl text-gray-300 mt-2">Bem-vindo(a), {comanda.nomeCliente}!</p>
+                  <p className="text-lg text-green-400 mt-1">Sua Comanda está Ativa ({comanda.mesaFixa})</p>
+              </div>
+
+              <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  
+                  {/* Itens Disponíveis para Consumo (2/3) */}
+                  <div className="lg:col-span-2 space-y-4">
+                      <h3 className="font-bold text-2xl text-dourado">O que você pode pedir agora:</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {itensDisponiveis.map(item => (
+                              <div key={item.id}
+                                   onClick={()=>adicionarAoPedido(item)}
+                                   className="p-4 rounded-2xl border border-dourado cursor-pointer shadow-xl hover:shadow-2xl transition bg-cinzaEscuro text-white">
+
+                                  <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                          <div className="font-semibold text-xl mt-1 text-dourado">{item.nome}</div>
+                                      </div>
+                                      <div className="text-right">
+                                          <div className="text-green-400 font-bold text-3xl">{item.quantidadeDisponivel}</div>
+                                          <div className="text-xs text-gray-400 mt-1">Disponível</div>
+                                      </div>
+                                  </div>
+
+                                  <div className="mt-3 flex items-center justify-between border-t border-preto pt-2">
+                                      <div className="text-sm text-dourado font-semibold">Adicionar ao Pedido ➕</div>
+                                  </div>
+                              </div>
+                          ))}
+                          {itensDisponiveis.length === 0 && (
+                              <div className="lg:col-span-3 text-center text-gray-400 p-8 border rounded-xl border-douradoEscuro">Você consumiu todos os itens pré-pagos!</div>
+                          )}
+                      </div>
+                  </div>
+
+                  {/* Pedido Atual (1/3) */}
+                  <div className={`p-5 rounded-2xl shadow-xl h-full flex flex-col bg-cinzaEscuro border-dourado border`}>
+                      <h3 className="font-bold text-2xl flex items-center gap-2 text-dourado">📢 Pedido para a Cozinha</h3>
+                      
+                      <div className="flex-1 max-h-[50vh] overflow-y-auto space-y-3 mt-4">
+                          {itensPedido.map(item => (
+                              <div key={item.id} className="p-3 border border-douradoEscuro rounded-lg bg-preto flex justify-between items-center">
+                                  <div className="font-medium text-dourado">{item.quantidade}x {item.nome}</div>
+                                  <button onClick={()=>removerDoPedido(item.id)} className="text-red-400 text-sm hover:underline">Remover</button>
+                              </div>
+                          ))}
+                          {itensPedido.length === 0 && <div className="text-gray-400 text-center py-6">Toque em um item para pedir.</div>}
+                      </div>
+
+                      <div className="mt-6 border-t border-dourado pt-4">
+                          <button 
+                              onClick={handleEnviarPedido} 
+                              disabled={itensPedido.length === 0}
+                              className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-green-500 to-teal-400 text-preto shadow-lg hover:shadow-xl transition disabled:opacity-50"
+                          >
+                              Enviar Pedido de Consumo
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+
+  /*************************
+   * View de Cliente Novo / Pedido Simples (COM CORREÇÃO DE CLIQUE) *
+   *************************/
+  function CardapioView({ produtosEmEstoque, setNomeCliente, nomeCliente, carrinho, adicionarAoCarrinho, totalCarrinho, enviarPedidoComanda }) {
+      const [busca, setBusca] = useState('');
+      
+      const produtosFiltrados = produtosEmEstoque.filter(p => 
+        p.nome.toLowerCase().includes(busca.toLowerCase()) || 
+        p.categoria.toLowerCase().includes(busca.toLowerCase())
+      );
+      
+      // CORREÇÃO: handleAdicionar agora chama a função real de adicionar ao carrinho.
+      function handleAdicionar(produto) {
+        if (!nomeCliente || nomeCliente.trim() === '') {
+          alert('Por favor, digite seu nome ou comanda antes de adicionar produtos.');
+          return;
+        }
+        adicionarAoCarrinho(produto);
+      }
+
+      const temaCliente = 'bg-cinzaEscuro text-white border-dourado';
+
+      return (
+          <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-preto via-cinzaEscuro to-preto">
+              {/* ... (Cabeçalho INALTERADO) ... */}
+              <div className="text-center mb-10">
+                  <h1 className="text-4xl font-extrabold text-dourado logo-bar-text">BAR DO GIGANTE</h1>
+                  <p className="text-xl text-gray-300 mt-2">Cardápio Digital - Faça seu pedido!</p>
+              </div>
+
+              <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  
+                  {/* Campo de Nome/Comanda (Substitui Mesa) */}
+                  <div className="lg:col-span-3 mb-4">
+                      <div className={`p-4 rounded-xl shadow-lg flex gap-3 items-center ${temaCliente}`}>
+                          <input 
+                              type="text"
+                              placeholder="Seu Nome ou Comanda (Ex: João, MESA 5)" 
+                              value={nomeCliente} 
+                              onChange={e => setNomeCliente(e.target.value)} 
+                              className="flex-1 p-3 border border-douradoEscuro bg-preto text-white rounded-lg focus:ring-2 focus:ring-dourado transition" 
+                          />
+                          <button onClick={() => alert("Seu nome define sua conta para pagamento no final.")} className="px-4 py-3 bg-dourado rounded-lg text-preto font-bold">Ver Conta</button>
+                      </div>
+                  </div>
+
+                  {/* Painel do Cardápio (2/3 da tela) */}
+                  <div className="lg:col-span-2 space-y-4">
+                      <div className={`p-4 rounded-xl shadow-lg flex gap-3 items-center ${temaCliente}`}>
+                          <input 
+                              type="search"
+                              value={busca} 
+                              onChange={e=>setBusca(e.target.value)} 
+                              placeholder="Pesquisar produto ou categoria" 
+                              className="flex-1 p-3 border border-douradoEscuro bg-preto text-white rounded-lg focus:ring-2 focus:ring-dourado transition" 
+                          />
+                      </div>
+                      <h3 className="font-bold text-2xl text-dourado">Cardápio Completo (Pagamento no Final):</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {produtosFiltrados.map(produto => (
+                              <div key={produto.id}
+                                   onClick={()=>handleAdicionar(produto)}
+                                   className="p-4 rounded-2xl border border-dourado cursor-pointer shadow-xl hover:shadow-2xl transition bg-preto text-white">
+
+                                  <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                          <div className="text-sm text-douradoEscuro">{produto.categoria}</div>
+                                          <div className="font-semibold text-lg mt-1 text-dourado">{produto.nome}</div>
+                                      </div>
+
+                                      <div className="text-right">
+                                          <div className="text-green-400 font-bold text-xl">{currency(produto.preco)}</div>
+                                      </div>
+                                  </div>
+                                  <div className="mt-3 flex items-center justify-between border-t border-cinzaEscuro pt-2">
+                                    <div className="text-xs text-gray-400">Toque para adicionar</div>
+                                    <div className="text-sm text-dourado font-semibold">Adicionar ➕</div>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  {/* Painel do Pedido/Mesa (1/3 da tela) */}
+                  <div className={`p-5 rounded-2xl shadow-xl h-full flex flex-col bg-cinzaEscuro border-dourado border`}>
+                      <h3 className="font-bold text-2xl flex items-center gap-2 text-dourado">📋 Meu Pedido</h3>
+                      
+                      <div className="flex-1 max-h-[50vh] overflow-y-auto space-y-3 mt-4">
+                          {carrinho.map(item=>(
+                              <div key={item.id} className="p-3 border border-douradoEscuro rounded-lg bg-preto">
+                                  <div className="font-medium text-dourado">{item.quantidade}x {item.nome}</div>
+                                  <div className="text-xs text-gray-500">{currency(item.preco)} cada</div>
+                              </div>
+                          ))}
+                          {carrinho.length===0 && <div className="text-gray-400 text-center py-6">Adicione itens ao seu pedido.</div>}
+                      </div>
+
+                      <div className="mt-6 border-t border-dourado pt-4">
+                          <div className="flex items-center justify-between font-bold text-2xl mb-4">
+                              <div>Total</div>
+                              <div className="text-green-400">{currency(totalCarrinho)}</div>
+                          </div>
+                          <button 
+                              onClick={enviarPedidoComanda} 
+                              disabled={!nomeCliente || carrinho.length === 0}
+                              className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-green-500 to-teal-400 text-preto shadow-lg transition disabled:opacity-50"
+                          >
+                              Enviar Pedido (Pagamento no final)
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+  /****************
+   * Main App     * (Otimizado para Cardápio)
+   ****************/
+  function App(){
+    useEffect(()=>{
+        const keys = ['produtos', 'pedidos', 'comandas'];
+        keys.forEach(key => {
+            const data = storageGet(key, null);
+            if(data === null && key === 'produtos') storageSet(key, initialProdutosDefault);
+            if(data === null && (key === 'pedidos' || key === 'comandas')) storageSet(key, []);
+        });
+    }, []);
+    
+    // Use state para os dados que podem mudar no cliente (pedidos, carrinho, nome)
+    const [nomeCliente, setNomeCliente] = useState(() => storageGet('nomeCliente', '')); 
+    const [carrinho, setCarrinho] = useState([]);
+    
+    // Recarrega os dados globais do storage em cada render
+    const todosProdutos = storageGet('produtos', initialProdutosDefault);
+    const produtosEmEstoque = todosProdutos.filter(p => p.estoque > 0);
+    const pedidos = storageGet('pedidos', []);
+    const comandas = storageGet('comandas', []);
+
+    useEffect(() => {
+        storageSet('nomeCliente', nomeCliente);
+    }, [nomeCliente]);
+
+
+    // Lógica de Comanda Ativa (Verifica se o cliente tem crédito pré-pago)
+    const comandaAtiva = useMemo(() => {
+        if (!nomeCliente) return null;
+        const nomeLower = nomeCliente.toLowerCase().trim();
+        return comandas.find(c => c.nomeCliente.toLowerCase().trim() === nomeLower && c.status === 'Aberta');
+    }, [nomeCliente, comandas]);
+
+
+    // Lógica de Carrinho (Com controle de estoque no client-side para pré-venda)
+    function adicionarAoCarrinho(produto){
+      const itemExistente = carrinho.find(i=>i.id===produto.id);
+      const produtoEmEstoque = todosProdutos.find(p=>p.id===produto.id);
+
+      // Controle de Estoque (apenas leitura aqui, o débito real é no PDV ou na Comanda)
+      if (produtoEmEstoque.estoque <= (itemExistente?.quantidade || 0)) {
+          alert(`Estoque insuficiente para ${produto.nome}. Máximo: ${produtoEmEstoque.estoque}`);
+          return;
+      }
+
+      if(itemExistente){
+        setCarrinho(carrinho.map(i => i.id===produto.id ? {...i, quantidade: i.quantidade+1} : i));
+      } else {
+        setCarrinho([...carrinho, {...produto, quantidade:1}]);
+      }
+    }
+    
+    // Função para o cliente enviar o pedido (Pagamento no Final)
+    function enviarPedidoComanda(){
+      if(carrinho.length === 0 || !nomeCliente || nomeCliente.trim() === '') return alert('Informe o nome e adicione itens.');
+      
+      const total = carrinho.reduce((s,i)=> s + i.preco * i.quantidade, 0);
+
+      const novoPedido = { 
+        id: uid(), 
+        data: new Date().toISOString(), 
+        nomeCliente: nomeCliente.trim(),
+        itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, quantidade: i.quantidade })), 
+        total: total,
+        status: 'Pendente' 
+      };
+      
+      storageSet('pedidos', [...pedidos, novoPedido]);
+      setCarrinho([]); 
+      alert(`Pedido de ${nomeCliente} enviado com sucesso! Será cobrado no final.`);
+    }
+    
+    // Função para o cliente enviar pedido de consumo (Comanda Ativa)
+    function enviarPedidoConsumo(pedido) {
+        if (!comandaAtiva) return;
+
+        const novoPedido = { 
+          id: uid(), 
+          data: new Date().toISOString(), 
+          nomeCliente: pedido.nomeCliente,
+          itens: pedido.itens,
+          total: pedido.itens.reduce((s, i) => s + (i.preco * i.quantidade), 0),
+          status: 'Em Preparo', 
+          comandaId: comandaAtiva.id,
+          tipo: 'Consumo Pre-pago'
+        };
+        
+        storageSet('pedidos', [...pedidos, novoPedido]);
+        alert(`Pedido de consumo para ${comandaAtiva.nomeCliente} enviado!`);
+    }
+
+    const totalCarrinho = carrinho.reduce((s,i)=> s + i.preco * i.quantidade, 0);
+
+    // Renderiza a Comanda Ativa se o cliente digitar o nome
+    if (comandaAtiva) {
+        return <ComandaAtivaView comanda={comandaAtiva} enviarPedidoConsumo={enviarPedidoConsumo} />;
+    }
+
+    return (
+      <CardapioView 
+          produtosEmEstoque={produtosEmEstoque} 
+          carrinho={carrinho}
+          totalCarrinho={totalCarrinho}
+          setNomeCliente={setNomeCliente} 
+          nomeCliente={nomeCliente}
+          adicionarAoCarrinho={adicionarAoCarrinho} // CORREÇÃO: Passa a função para o subcomponente
+          enviarPedidoComanda={enviarPedidoComanda} 
+      />
+    );
+  }
+
+  ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+
+</html>
